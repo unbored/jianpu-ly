@@ -148,7 +148,7 @@ def all_scores_start(inDat):
 \pointAndClickOff
 
 \paper {
-  print-all-headers = ##t %% allow per-score headers
+  print-all-headers = ##f %% not allow per-score headers
 
   % un-comment the next line for A5:
   % #(set-default-paper-size "a5" )
@@ -177,6 +177,7 @@ def all_scores_start(inDat):
      #:roman "Source Serif Pro,Source Han Serif SC,Times New Roman,Arial Unicode MS"
      #:factor (/ staff-height pt 20)
     ))
+    system-system-spacing = #'((basic-distance . 5) (padding . 4) (stretchability . 1e7))
 """
     if has_lyrics: r += r"""
   % Might need to enforce a minimum spacing between systems, especially if lyrics are below the last staff in a system and numbers are on the top of the next
@@ -186,7 +187,7 @@ def all_scores_start(inDat):
   markup-system-spacing = #'((basic-distance . 2) (padding . 2) (stretchability . 0))
 """
     r += "}\n" # end of \paper block
-
+    r += "jianziSize = #'(4 . 4)\n\\include \"jianzi.ly\"\n"
     r += r"""
 %% 2-dot and 3-dot articulations
 #(append! default-script-alist
@@ -244,6 +245,13 @@ addHarmonic = #(define-music-function (music)
                  (ly:music?)
                  (map-some-music add-harmonic music))"""
     if inner_beams_below: r += r"""
+
+#(define-markup-command (put-before layout props arg1 arg2) (markup? markup?)
+(interpret-markup layout props
+    #{
+      \markup \put-adjacent #X #LEFT #arg1 #arg2
+    #}))
+
 #(define (flip-beams grob)
    (ly:grob-set-property!
     grob 'stencil
@@ -258,7 +266,10 @@ addHarmonic = #(define-music-function (music)
     return r+"\n%{ The jianpu-ly input was:\n" + inDat.strip().replace("%}","%/}")+"\n%}\n\n"
 
 def score_start():
-    ret = "\\score {\n"
+    ret = r"""
+    \markup \vspace #1
+"""
+    ret += "\\score {\n"
     if midi: ret += "\\unfoldRepeats\n"
     ret += r"<< "
     if not notehead_markup.noBarNums and not midi: ret += ("\\override Score.BarNumber #'break-visibility = #center-visible\n\\override Score.BarNumber #'Y-offset = -1\n\\set Score.barNumberVisibility = #(every-nth-bar-number-visible %d)" % bar_number_every)
@@ -339,12 +350,21 @@ def jianpu_staff_start(inst=None,withStaff=False):
     %% Get rid of the stave but not the barlines:
     \override StaffSymbol #'line-count = #0 %% tested in 2.15.40, 2.16.2, 2.18.0, 2.18.2, 2.20.0 and 2.22.2
     \override BarLine #'bar-extent = #'(-2 . 2) %% LilyPond 2.18: please make barlines as high as the time signature even though we're on a RhythmicStaff (2.16 and 2.15 don't need this although its presence doesn't hurt; Issue 3685 seems to indicate they'll fix it post-2.18)
+""" 
+    if remove_timesig: r+= r"""
+    \remove Time_signature_engraver
+"""
+    r+=r"""
     }
     { """
     j,voiceName = jianpu_voice_start()
     r += j+r"""
     \override Staff.TimeSignature #'style = #'numbered
     \override Staff.Stem #'transparent = ##t
+    """
+    r += r"""
+    \textLengthOn
+    \override TextScript.staff-padding = 4 % 调整间距以对齐减字
     """
     return r, voiceName
 def jianpu_staff_end():
@@ -534,7 +554,7 @@ class NoteheadMarkup:
         chordMode = True
         # Process chords: reuse the word to process chords
         # remove durations
-        figures,newName,bottom_octave,top_octave,placeholder_chord = chordNotes_markup(re.sub('[qsdh]','',word))
+        figures,newName,bottom_octave,top_octave,placeholder_chord = chordNotes_markup(re.sub('[qsdh.]','',word))
         if not midi and not western: placeholder_chord = "c"
 
     if figures not in defines and not midi and not western:
@@ -681,10 +701,14 @@ class NoteheadMarkup:
         self.current_accidentals = {}
     # Octave dots:
     if not midi and not western and not '-' in figures:
-      if not nBeams: ret += {",":r"-\tweak #'Y-offset #-1.2 ",
+      if not nBeams: 
+          oDict = {
+              ",":r"-\tweak #'Y-offset #-1.2 ",
                              ",,":r"-\tweak #'Y-offset #-2 ",
                              ",,,":r"-\tweak #'Y-offset #-2.7 ",
-                             }.get(octave,"")
+                             }
+          if chordMode: ret += oDict.get(bottom_octave,"")
+          else: ret += oDict.get(octave,"")
       # Ugly fix for grace dot positions
       x_offset=0.6
       extra_offset=0
@@ -962,7 +986,8 @@ def graceNotes_markup(notes,isAfter,harmonic=False):
     mr = ''.join(mr)
     # deal with harmonic articulations
     if harmonic: mr = r"\addHarmonic{ %s }" % mr
-    return r"^\tweak outside-staff-priority ##f ^\tweak avoid-slur #'inside ^\tweak #'extra-offset #'(-0.5 . -0.5) ^\markup \%s { %s }" % (cmd,mr)
+    offset = "-2.5 . 0" if isAfter else "-0.5 . -0.5"
+    return r"^\tweak outside-staff-priority ##f ^\tweak avoid-slur #'inside ^\tweak #'extra-offset #'(%s) ^\markup \%s { %s }" % (offset,cmd,mr)
 def grace_octave_fix(notes): return re.sub(
         "(.*)([1-7])([^1-7]+)$",
         lambda m:grace_octave_fix(m.group(1))+m.group(3)+m.group(2),
@@ -1139,11 +1164,11 @@ def chordNotes_markup(notes):
           (#:dir-column (\n"""
         for v in marklist:
             if v == "...":
-                ret += '    #:vspace 0.05 #:line (#:hspace -0.2 #:bold "'+three_dots+'") #:vspace -0.05\n'
+                ret += '    #:vspace 0.05 #:line (#:hspace -0.2 #:roman #:bold "'+three_dots+'") #:vspace -0.05\n'
             elif v == "..":
-                ret += '    #:vspace 0.05 #:line (#:hspace 0.2 #:bold ":") #:vspace -0.1\n'
+                ret += '    #:vspace 0.05 #:line (#:hspace 0.2 #:roman #:bold ":") #:vspace -0.1\n'
             elif v == ".":
-                ret += '    #:vspace 0.1 #:line (#:hspace 0.3 #:bold ".") #:vspace -0.3\n'
+                ret += '    #:vspace 0.1 #:line (#:hspace 0.3 #:roman #:bold ".") #:vspace -0.3\n'
             else:
                 ret += '    #:line (#:bold "'+v+'")\n'
         ret += ")))))))))))"
@@ -1174,6 +1199,10 @@ def getLY(score,headers=None,have_final_barline=True):
     elif line.startswith(":LP"):
         escaping = 0
         if line.replace(":LP","").strip(): sys.stderr.write("Warning: current implementation ignores anything after :LP on same line\n") # TODO
+    elif line.startswith("M:^"):
+        if len(line)>3: out.append("^\\markup{"+line[3:]+"}\n")
+    elif line.startswith("M:_"):
+        if len(line)>3: out.append("_\\markup{"+line[3:]+"}\n")
     elif escaping:
         out.append(line+"\n")
     elif not line: pass
@@ -1300,6 +1329,9 @@ def getLY(score,headers=None,have_final_barline=True):
                 if notehead_markup.separateTimesig: sys.stderr.write("WARNING: Duplicate SeparateTimesig, did you miss out a NextScore?\n")
                 notehead_markup.separateTimesig=1
                 out.append(r"\override Staff.TimeSignature #'stencil = ##f")
+            elif word=="RemoveTimesig":
+                global remove_timesig
+                remove_timesig = True
             elif word in ["angka","Indonesian"]:
                 global not_angka
                 if not_angka: sys.stderr.write("WARNING: Duplicate angka, did you miss out a NextScore?\n")
@@ -1559,16 +1591,77 @@ def getLY(score,headers=None,have_final_barline=True):
    if not_angka: out=out.replace("make-bold-markup","make-simple-markup")
    return out,maxBeams,lyrics,headers
 
+def global_header(headers):
+    global trans_key
+    key = ""
+    strings = ""
+    # put headers in list
+    header_list = {}
+    for line in headers.split("\n"):
+        if line.strip() == "":
+            continue
+        if line.startswith("%"):
+            continue
+        if line.startswith("1="):
+            trans_key = line
+            key = " ( " + line + " )"
+            key = key.replace('b',u'\u266d',1).replace('#',u'\u266f',1)
+        elif line.startswith("strings="):
+            strings = "\\markup{定弦： "
+            strs = line[8:].split()
+            for s in strs:
+                strings += "\\center-column{ \\bold \\sans" + s[0]
+                dotdict = {
+                    ",": " \\vspace #-0.7 \\bold \".\" } ",
+                    ",,": " \\vspace #-0.5 \\bold  \":\" } ",
+                    "'" : " \\vspace #-1.7 \\bold \".\" } ",
+                    "''": " \\vspace #-1.7 \\bold \":\" } "
+                }
+                strings += dotdict.get(s[1:], "} ")
+            strings += "}\n"
+        else:
+            # Lilypond header (or guitar chords)
+            hName,hValue = line.split("=",1)
+            hName,hValue = hName.strip().lower(),hValue.strip()
+            header_list[hName] = hValue
+
+    ret = r"\header{"+'\n'
+    for k,v in header_list.items(): 
+        if k == "poet":
+            v += key
+        ret+=k+'="'+v+'"\n'
+    ret += "}\n"
+    
+    ret += strings
+
+    return ret
+
 def process_input(inDat):
  global unicode_mode
  unicode_mode = not not re.search(r"\sUnicode\s"," "+inDat+" ")
  if unicode_mode: return get_unicode_approx(re.sub(r"\sUnicode\s"," "," "+inDat+" ").strip())+"\n"
  ret = []
- global scoreNo, western, has_lyrics, midi, not_angka, maxBeams, uniqCount, notehead_markup, defines
+ global scoreNo, western, has_lyrics, midi, not_angka, maxBeams, uniqCount, notehead_markup, defines, remove_timesig, trans_key
  uniqCount = 0 ; notehead_markup = NoteheadMarkup()
  defines = {}
  scoreNo = 0 # incr'd to 1 below
  western = False
+ remove_timesig = False
+ trans_key = "1=C"
+ inComment = ""
+ # find global header
+ score_headers = re.split(r"\sBeginScore\s", inDat)
+ if len(score_headers) != 2:
+  errExit("Must have only one BeginScore line")
+ inHead = score_headers[0]
+ inDat = score_headers[1]
+ score_comments = re.split(r"\sComments\s", inDat)
+ if len(score_comments) > 2:
+  errExit("Must have only one Comments line")
+ inDat = score_comments[0]
+ if len(score_comments) == 2:
+  inComment = score_comments[1]
+ # process scores
  for score in re.split(r"\sNextScore\s"," "+inDat+" "):
   if not score.strip(): continue
   scoreNo += 1
@@ -1576,7 +1669,10 @@ def process_input(inDat):
   parts = [p for p in re.split(r"\sNextPart\s"," "+score+" ") if p.strip()]
   for midi in [False,True]:
    not_angka = False # may be set by getLY
-   if scoreNo==1 and not midi: ret.append(all_scores_start(inDat)) # now we've established non-empty
+   if scoreNo==1 and not midi: 
+       ret.append(all_scores_start(inDat)) # now we've established non-empty
+        # process global header
+       ret.append(global_header(inHead))
    separate_score_per_part = midi and re.search(r"\sPartMidi\s"," "+score+" ") and len(parts)>1 # TODO: document this (results in 1st MIDI file containing all parts, then each MIDI file containing one part, if there's more than 1 part)
    for separate_scores in [False,True] if separate_score_per_part else [False]:
     headers = {} # will accumulate below
@@ -1601,7 +1697,16 @@ def process_input(inDat):
          if frets: ret.append(r'\new FretBoards { '+('' if frets=='guitar' else r'\set Staff.stringTunings = #'+frets+'-tuning')+r' \chordmode { '+headers["chords"]+' } }')
          del headers["chords"]
      if midi:
-       ret.append(midi_staff_start()+" "+out+" "+midi_staff_end())
+       ret.append(midi_staff_start())
+       # place key transpose here
+       if trans_key[0]=="6": transposeFrom = "a"
+       else: transposeFrom = "c"
+       transposeTo = trans_key[trans_key.index('=')+1:].replace("#","is").replace("b","es").lower()
+       if midi and transposeTo[0] in "gab": transposeTo += ','
+       ret.append(r"\transpose c "+transposeTo+r" { \key c \major ") # so that MIDI or Western pitches are correct
+       ret.append(" "+out+" ")
+       ret.append("}")
+       ret.append(midi_staff_end())
      else:
        staffStart,voiceName = jianpu_staff_start(inst,notehead_markup.withStaff)
        ret.append(staffStart+" "+out+" "+jianpu_staff_end())
@@ -1615,6 +1720,8 @@ def process_input(inDat):
        ret.append(score_end(**headers))
  if defines: ret.insert(1,"\n".join(["\n% ----- Begin notehead graphical-object definitions"]+[x[1] for x in defines.values()]+["% ----- End notehead graphical-object definitions\n"]))
  ret = "".join(r+"\n" for r in ret)
+ if len(inComment) > 0:
+  ret += "\\markuplist \\wordwrap-lines {\n" + inComment + "\n}\n"
  if lilypond_minor_version() >= 24: ret=re.sub(r"(\\override [A-Z][^ ]*) #'",r"\1.",ret) # needed to avoid deprecation warnings on Lilypond 2.24
  return ret
 
@@ -1622,8 +1729,9 @@ def get_unicode_approx(inDat):
     if re.search(r"\sNextPart\s"," "+inDat+" "): errExit("multiple parts in Unicode mode not yet supported")
     if re.search(r"\sNextScore\s"," "+inDat+" "): errExit("multiple scores in Unicode mode not yet supported")
     # TODO: also pick up on other not-supported stuff e.g. grace notes (or check for unicode_mode when these are encountered)
-    global notehead_markup, western, midi, uniqCount, scoreNo, has_lyrics, not_angka, maxBeams, defines
+    global notehead_markup, western, midi, uniqCount, scoreNo, has_lyrics, not_angka, maxBeams, defines, remove_timesig
     notehead_markup = NoteheadMarkup()
+    remove_timesig = False
     western = midi = not_angka = False
     defines = {}
     has_lyrics = True # doesn't matter for our purposes (see 'false positive' comment above)
