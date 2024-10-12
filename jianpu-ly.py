@@ -254,12 +254,6 @@ note-mod-angka = #(define-music-function (text note) (markup? ly:music?)
 """
     if inner_beams_below: r += r"""
 
-#(define-markup-command (put-before layout props arg1 arg2) (markup? markup?)
-(interpret-markup layout props
-    #{
-      \markup \put-adjacent #X #LEFT #arg1 #arg2
-    #}))
-
 #(define (flip-beams grob)
    (ly:grob-set-property!
     grob 'stencil
@@ -440,7 +434,38 @@ jianpuGraceCurveStart =
 jianpuGraceCurveEnd =
 #(make-span-event 'JianpuGraceCurveEvent STOP)
 %%===========================================================
+
 """ % {3.5: -0.2, 2.5: +0.32}[grace_height]
+    
+    # Guqin related
+    r += r"""
+#(define-markup-command (put-before layout props arg1 arg2) (markup? markup?)
+(interpret-markup layout props
+    #{
+      \markup \put-adjacent #X #LEFT #arg1 #arg2
+    #}))
+
+upArrow = 
+     \tweak outside-staff-priority ##f \tweak Y-offset 0
+     -\markup \path #0.1 #'(
+       (moveto -1.0 1.5)
+       (rlineto -0.5 -0.5)
+       (moveto -1.0 1.5)
+       (rlineto 0.5 -0.5)
+       (moveto -1.0 1.5)
+       (rcurveto 0 -2 -1 -2 -1.5 -2))
+
+downArrow = 
+     \tweak outside-staff-priority ##f \tweak Y-offset 0
+     -\markup \path #0.1 #'(
+       (moveto -1.0 -0.5)
+       (rlineto -0.5 0.5)
+       (moveto -1.0 -0.5)
+       (rlineto 0.5 0.5)
+       (moveto -1.0 -0.5)
+       (rcurveto 0 2 -1 2 -1.5 2))
+"""
+
     return r+"\n%{ The jianpu-ly input was:\n" + inDat.strip().replace("%}","%/}")+"\n%}\n\n"
 
 def score_start():
@@ -1163,8 +1188,6 @@ def graceNotes_markup(notes,isAfter,harmonic=False):
             figure = ""
             octave = ""
     mr = ''.join(mr)
-    # deal with harmonic articulations
-    if harmonic: mr = r"\addHarmonic{ %s }" % mr
     offset = "-2.5 . 0" if isAfter else "-0.5 . -0.5"
     return mr
 def grace_octave_fix(notes): return re.sub(
@@ -1379,10 +1402,8 @@ def getLY(score,headers=None,have_final_barline=True):
             # -----------------------------------
             if word.startswith('%'): break # a comment
             elif word == "Harm:":
-                out.append("\n\\addHarmonic {\n")
                 isInHarmonic = True
             elif word==":Harm":
-                out.append("\n}\n")
                 isInHarmonic = False
             elif re.match("[1-468]+[.]*=[1-9][0-9]*$",word): out.append(r'\tempo '+word) # TODO: reduce size a little?
             elif re.match("[16]=[A-Ga-g][#b]?$",word): #key
