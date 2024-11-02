@@ -203,7 +203,7 @@ def all_scores_start(inDat):
   markup-system-spacing = #'((basic-distance . 2) (padding . 2) (stretchability . 0))
 """
     r += "}\n" # end of \paper block
-    r += "jianziSize = #'(4 . 4)\n\\include \"jianzi.ly\"\n"
+    r += "\\include \"jianzidef.ly\"\n"
     r += r"""
 %% 2-dot and 3-dot articulations
 #(append! default-script-alist
@@ -1345,10 +1345,10 @@ def getLY(score,headers=None,have_final_barline=True):
     elif line.startswith(":LP"):
         escaping = 0
         if line.replace(":LP","").strip(): sys.stderr.write("Warning: current implementation ignores anything after :LP on same line\n") # TODO
-    elif line.startswith("M:^"):
-        if len(line)>3: out.append("^\\markup{"+line[3:]+"}\n")
-    elif line.startswith("M:_"):
-        if len(line)>3: out.append("_\\markup{"+line[3:]+"}\n")
+    # elif line.startswith("M:^"):
+    #     if len(line)>3: out.append("^\\markup{"+line[3:]+"}\n")
+    # elif line.startswith("M:_"):
+    #     if len(line)>3: out.append("_\\markup{"+line[3:]+"}\n")
     elif escaping:
         out.append(line+"\n")
     elif not line: pass
@@ -1392,6 +1392,14 @@ def getLY(score,headers=None,have_final_barline=True):
             errExit("Changing header '%s' from '%s' to '%s' (is there a missing %s?)" % (hName,headers[hName],hValue,missing))
         headers[hName] = hValue
     else:
+        # 寻找M^或者M_，往后的都是markup的内容
+        lines=re.split("M([_^])",line,1)
+        line=lines[0]
+        mpos=''
+        markups=""
+        if len(lines)>1:
+            mpos=lines[1]
+            markups=lines[2]
         line=re.sub('(?<= )[_^]"[^" ]* [^"]*"(?= |$)',lambda m:m.group().replace(' ',chr(0))," "+line)[1:] # multi-word text above/below stave
         for word in line.split():
             word=word.replace(chr(0)," ")
@@ -1575,6 +1583,8 @@ def getLY(score,headers=None,have_final_barline=True):
                 if not_angka and "'" in octave: maxBeams=max(maxBeams,len(octave)*.8+nBeams)
                 else: maxBeams=max(maxBeams,nBeams)
                 if isInHarmonic and not midi and not western and not figures=='-': out[-1]+=r" \flageolet "
+        if len(mpos)>0 and len(markups)>0:
+            out.append(mpos+r"\markup{"+markups+"}")
    if notehead_markup.barPos == 0 and notehead_markup.barNo == 1: errExit("No jianpu in score %d" % scoreNo)
    if notehead_markup.inBeamGroup and not midi and not western and not notehead_markup.inBeamGroup=="restHack": out[lastPtr] += ']' # needed if ending on an incomplete beat
    if inTranspose: out.append("}")
