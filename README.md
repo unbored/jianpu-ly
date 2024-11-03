@@ -1,3 +1,120 @@
+# jianpu-ly:Guqin
+
+Lilypond编译简谱，原作者http://ssb22.user.srcf.net/mwrhome/jianpu-ly.html。针对古琴谱的特点进行了修改调整。
+
+一个Python程序，利用Lilypond的排版系统生成简谱。使用本脚本需要基本的Python程序运行和Lilypond乐谱编译知识。
+
+目前在Python3和Lilypond 2.24版本下编译通过。
+
+使用方法：
+```
+python3 jianpu-ly [txt文件] > [ly文件]
+lilypond [ly文件]
+```
+
+支持的指令列表：
+
+音符：`1 2 3 4 5 6 7`
+
+升降调：`1 #2 3 b4`
+
+八度：`1,, 2' ,3 ''4`
+
+八分、十六分、三十二分、六十四分音符：`q1 s1 d1 h1`
+
+附点：`q1. s2`
+
+延长线（二分、二分附点、全音符）：`1 - 2 - - 3 - - -`
+
+拍号（默认不显示，但会进行小结检查）：`2/4` `3/8`
+
+调号：`1=Bb` `6=C`
+
+速度：`4=86` `8=40`
+
+歌词：`L: 天 地 玄 黄 ~ 宇宙 洪荒`
+
+谱头：
+```
+title=主标题
+subtitle=副标题
+composer=作曲者（右上）
+arranger=整理者（右下）
+poet=调式（左上）
+1=F
+meter=调弦方式（左下）
+strings=5,, 6,, 1, 2, 3, 5, 6,
+```
+
+乐谱开始：`BeginScore`
+
+乐谱分节：`NextScore`
+
+节标题：`piece=标题`
+
+关闭小节数显示：`NoBarNums`
+
+关闭首行缩进：`NoIndent`
+
+连音：`3[ q1 q1 q1 ]` `5[ s1 s2 s3 s4 s5 ]`
+
+装饰音：`G{ s1 s2 } 3` `G{ s1 ( s2 } 3 )`
+
+后装饰音：`1 AG{ s2 s3 }` `1 ( AG{ s2 s3 ) }`
+
+和弦（八度、升降等应放在数字前，中间没有空格。自动根据音高排序）：`,1,3,5` `''1'#4`
+
+反复记号（可选不同结尾）：`R{ 1 1 1 } A{ 2 | 3 }`
+
+连音线：`1 ~ 1`
+
+联结线：`1 ( 2 3 ) 4`
+
+上滑音（绰）下滑音（注）：`1 \upArrow 2 \downArrow`
+
+力度：`1 \p 2 \mf`
+
+其他单音标记（自由延长、泛音）：`1 \fermata 2 \flageolet`
+
+整组泛音：
+```
+1
+Harm:
+2 3 4
+:Harm
+5
+```
+
+Markup标记（可附在一行最后）：`1 M_\line{"测试" "文本"}`
+
+单行注释：`% 注释`
+
+示例文件（结合JianziNote程序）：
+```
+% jianpu-ly.py 文檔
+title=主标题
+subtitle=副标题
+composer=流素鳴桐作曲
+arranger=流素鳴桐整理
+poet=蕤宾调
+1=Bb
+meter=紧五弦
+strings=2,, 3,, 5,, 6,, 1, 2, 3,
+
+BeginScore
+
+4=44
+4/4
+1,    M_\"jz:散挑七"
+G{
+s1, ( M_\"jz:历六五"
+s2,
+}
+2,  ) M_\"jz:勾四"
+,3,5  M_\"jz:拨三二"
+-
+```
+
 # jianpu-ly
 
 Jianpu in Lilypond, from http://ssb22.user.srcf.net/mwrhome/jianpu-ly.html
