@@ -1,6 +1,6 @@
 # jianpu-ly:Guqin
 
-Lilypond编译简谱，原作者http://ssb22.user.srcf.net/mwrhome/jianpu-ly.html。针对古琴谱的特点进行了修改调整。
+Lilypond编译简谱，[原作者ssb22](https://github.com/ssb22/jianpu-ly)。针对古琴谱的特点进行了修改调整。
 
 一个Python程序，利用Lilypond的排版系统生成简谱。使用本脚本需要基本的Python程序运行和Lilypond乐谱编译知识。
 
@@ -14,7 +14,7 @@ lilypond [ly文件]
 
 支持的指令列表：
 
-音符：`1 2 3 4 5 6 7`
+音符：`1 2 3 4 5 6 7 0`
 
 升降调：`1 #2 3 b4`
 
