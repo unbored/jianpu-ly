@@ -142,7 +142,7 @@ def find_grace_height(music):
     # check if high-quality published music does that.
     # Change every time would require differently parameterised versions of jianpu-grace-curve-stencil though.)
     global grace_height
-    grace_height = 2.5
+    grace_height = 3.5
     for word in music.split():
         if word.startswith("g[") or word.endswith("]g"):
             if "d" in word or ",," in word:
@@ -1335,6 +1335,7 @@ def getLY(score,headers=None,have_final_barline=True):
    aftrnext = defined_jianpuGrace = defined_JGR = None
    aftrnext2 = None
    isInHarmonic = False
+   grace_type = ""
    for line in score.split("\n"):
     line = fix_fullwidth(line).strip()
     line=re.sub(r"^%%\s*tempo:\s*(\S+)\s*$",r"\1",line) # to provide an upgrade path for jihuan-tian's fork
@@ -1502,7 +1503,40 @@ def getLY(score,headers=None,have_final_barline=True):
                 repeatStack.append((1,notehead_markup.barPos,times-1,len(out)))
                 if out: out[-1]=re.sub(r' \\bar "|."$',"",out[-1])
                 out.append(r'\repeat percent %d {' % times)
+            elif word=="G{":
+                grace_type = "before"
+                gracenote_markup = NoteheadMarkup(grace_type)
+                grace_count = 0
+                out.append("\\grace{\n")
+                if not midi and not western: out.append(r"\once \override Score.JianpuGraceCurve.direction = #RIGHT \jianpuGraceCurveStart ")
+                grace_begin = len(out)
+            elif word=="AG{":
+                grace_type = "after"
+                gracenote_markup = NoteheadMarkup(grace_type)
+                grace_count = 0
+                out[lastPtr] = " \\afterGrace {\n" + out[lastPtr] + " } {\n"
+                if not midi and not western: out.append(r"\once \override Score.JianpuGraceCurve.direction = #LEFT \jianpuGraceCurveStart ")
+                grace_begin = len(out)
             elif word=="}":
+                if grace_type != "":
+                    # in grace mode, close them
+                    if not midi and not western:
+                        if grace_type == "before":
+                            out[grace_end] = r"\jianpuGraceCurveEnd " + out[grace_end]
+                            if grace_count < 2: 
+                                # 去除原先的[，放到s后面
+                                out[grace_begin] = out[grace_begin].replace('[','',1)
+                                out[grace_begin] = "s [" + out[grace_begin]
+                        else:
+                            if grace_count < 2: 
+                                out[grace_end] = out[grace_end].replace(']','',1)
+                                out[-1] += r"\jianpuGraceCurveEnd s "
+                            else: out[grace_end] = r"\jianpuGraceCurveEnd " + out[grace_end]
+                        if gracenote_markup.inBeamGroup: out[-1] += ' ]'
+                    grace_type = ""
+                    grace_count = -1
+                    out.append("}\n")
+                    break
                 numBraces,oldBarPos,extraRepeats,rStartP = repeatStack.pop()
                 out.append("}"*numBraces)
                 # Re-synchronise so bar check still works if percent is less than a bar:
@@ -1566,23 +1600,30 @@ def getLY(score,headers=None,have_final_barline=True):
                     if not word: continue # allow just < and > by itself in a word
                 figures,nBeams,dots,octave,accidental,tremolo = parseNote(word,word0,line)
                 need_final_barline = True
-                aftrLastNonDash,isDash,b4last,replaceLast,aftrlast,this,need_space_for_accidental,nBeams,octave = notehead_markup(figures,nBeams,dots,octave,accidental,tremolo,word0,line)
-                if replaceLast: out[lastPtr]=replaceLast
-                if b4last: out[lastPtr]=b4last+out[lastPtr]
-                if aftrlast: out.insert(lastPtr+1,aftrlast)
-                if aftrLastNonDash: out.insert(lastNonDashPtr+1,aftrLastNonDash)
-                lastPtr = len(out)
-                if not isDash: lastNonDashPtr = len(out)
-                out.append(this)
-                if aftrnext2:
-                    out.append(aftrnext2)
-                    aftrnext2 = None
-                if aftrnext:
-                    if need_space_for_accidental: aftrnext = aftrnext.replace(r"\markup",r"\markup \halign #2 ",1)
-                    out.append(aftrnext)
-                    aftrnext = None
-                if not_angka and "'" in octave: maxBeams=max(maxBeams,len(octave)*.8+nBeams)
-                else: maxBeams=max(maxBeams,nBeams)
+                if grace_type != "":
+                    _,_,_,_,_,this,_,nBeams,octave=gracenote_markup(figures,nBeams,dots,octave,accidental,tremolo,word0,line)
+                    lastPtr = len(out)
+                    grace_end = lastPtr
+                    out.append(this)
+                    grace_count += 1
+                else:
+                    aftrLastNonDash,isDash,b4last,replaceLast,aftrlast,this,need_space_for_accidental,nBeams,octave = notehead_markup(figures,nBeams,dots,octave,accidental,tremolo,word0,line)
+                    if replaceLast: out[lastPtr]=replaceLast
+                    if b4last: out[lastPtr]=b4last+out[lastPtr]
+                    if aftrlast: out.insert(lastPtr+1,aftrlast)
+                    if aftrLastNonDash: out.insert(lastNonDashPtr+1,aftrLastNonDash)
+                    lastPtr = len(out)
+                    if not isDash: lastNonDashPtr = len(out)
+                    out.append(this)
+                    if aftrnext2:
+                        out.append(aftrnext2)
+                        aftrnext2 = None
+                    if aftrnext:
+                        if need_space_for_accidental: aftrnext = aftrnext.replace(r"\markup",r"\markup \halign #2 ",1)
+                        out.append(aftrnext)
+                        aftrnext = None
+                    if not_angka and "'" in octave: maxBeams=max(maxBeams,len(octave)*.8+nBeams)
+                    else: maxBeams=max(maxBeams,nBeams)
                 if isInHarmonic and not midi and not western and not figures=='-': out[-1]+=r" \flageolet "
         if len(mpos)>0 and len(markups)>0:
             out.append(mpos+r"\markup{"+markups+"}")
@@ -1678,7 +1719,9 @@ def process_input(inDat):
  if unicode_mode: return get_unicode_approx(re.sub(r"\sUnicode\s"," "," "+inDat+" ").strip())+"\n"
  ret = []
  global scoreNo, western, has_lyrics, midi, not_angka, maxBeams, uniqCount, notehead_markup, remove_timesig, trans_key
+ global gracenote_markup, grace_type, grace_count, grace_begin, grace_end
  uniqCount = 0 ; notehead_markup = NoteheadMarkup()
+ gracenote_markup = NoteheadMarkup(); grace_type = ""; grace_count = -1
  scoreNo = 0 # incr'd to 1 below
  western = False
  find_grace_height(inDat)
