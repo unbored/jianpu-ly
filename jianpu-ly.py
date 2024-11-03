@@ -1483,9 +1483,9 @@ def getLY(score,headers=None,have_final_barline=True):
                 if notehead_markup.separateTimesig: sys.stderr.write("WARNING: Duplicate SeparateTimesig, did you miss out a NextScore?\n")
                 notehead_markup.separateTimesig=1
                 out.append(r"\override Staff.TimeSignature #'stencil = ##f")
-            elif word=="RemoveTimesig":
+            elif word=="ShowTimesig":
                 global remove_timesig
-                remove_timesig = True
+                remove_timesig = False
             elif word in ["angka","Indonesian"]:
                 global not_angka
                 if not_angka: sys.stderr.write("WARNING: Duplicate angka, did you miss out a NextScore?\n")
@@ -1725,7 +1725,7 @@ def process_input(inDat):
  scoreNo = 0 # incr'd to 1 below
  western = False
  find_grace_height(inDat)
- remove_timesig = False
+ remove_timesig = True
  trans_key = "1=C"
  inComment = ""
  # find global header
@@ -1809,7 +1809,7 @@ def get_unicode_approx(inDat):
     # TODO: also pick up on other not-supported stuff e.g. grace notes (or check for unicode_mode when these are encountered)
     global notehead_markup, western, midi, uniqCount, scoreNo, has_lyrics, not_angka, maxBeams, remove_timesig
     notehead_markup = NoteheadMarkup()
-    remove_timesig = False
+    remove_timesig = True
     western = midi = not_angka = False
     has_lyrics = True # doesn't matter for our purposes (see 'false positive' comment above)
     uniqCount = 0 ; scoreNo = 1
