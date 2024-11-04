@@ -156,7 +156,7 @@ def all_scores_start(inDat):
     r += r"""
 
 % un-comment the next line to remove Lilypond tagline:
-% \header { tagline="" }
+\header { tagline="Music engraving by jianpu-ly:Guqin" }
 
 % comment out the next line if you're debugging jianpu-ly
 % (but best leave it un-commented in production, since
@@ -1536,7 +1536,7 @@ def getLY(score,headers=None,have_final_barline=True):
                     grace_type = ""
                     grace_count = -1
                     out.append("}\n")
-                    break
+                    continue
                 numBraces,oldBarPos,extraRepeats,rStartP = repeatStack.pop()
                 out.append("}"*numBraces)
                 # Re-synchronise so bar check still works if percent is less than a bar:
@@ -1601,7 +1601,7 @@ def getLY(score,headers=None,have_final_barline=True):
                 figures,nBeams,dots,octave,accidental,tremolo = parseNote(word,word0,line)
                 need_final_barline = True
                 if grace_type != "":
-                    _,_,_,_,_,this,_,nBeams,octave=gracenote_markup(figures,nBeams,dots,octave,accidental,tremolo,word0,line)
+                    _,_,_,_,_,this,_,_,_=gracenote_markup(figures,nBeams,dots,octave,accidental,tremolo,word0,line)
                     lastPtr = len(out)
                     grace_end = lastPtr
                     out.append(this)
