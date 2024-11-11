@@ -4,7 +4,7 @@
 r"""
 # Jianpu (numbered musical notaion) for Lilypond
 # v1.823 (c) 2012-2024 Silas S. Brown
-# v1.824 (c) 2024 Unbored
+# v1.825 (c) 2024 Unbored
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -245,12 +245,18 @@ note-mod =
      \tweak NoteHead.stencil #ly:text-interface::print
      \tweak NoteHead.text
         \markup \lower #0.5 \sans \bold #text
+     \tweak Rest.stencil #ly:text-interface::print
+     \tweak Rest.text
+        \markup \lower #0.5 \sans \bold #text
      #note
    #})"""
     if re.search(r"(\s|^)(angka|Indonesian)(\s|$)",inDat): r += r"""
 note-mod-angka = #(define-music-function (text note) (markup? ly:music?)
    #{ \tweak NoteHead.stencil #ly:text-interface::print
-     \tweak NoteHead.text \markup \lower #0.5 \bold #text #note #})
+     \tweak NoteHead.text \markup \lower #0.5 \bold #text
+     \tweak Rest.stencil #ly:text-interface::print
+     \tweak Rest.text \markup \lower #0.5 \bold #text
+     #note #})
 """
     if inner_beams_below: r += r"""
 
@@ -345,14 +351,14 @@ jianpuGraceCurveEngraver =
          (current-event '())
          (event-start '())
          (event-stop '()))
-     
-     `((listeners
+     `(
+       (listeners
         (jianpu-grace-curve-event .
           ,(lambda (engraver event)
              (if (= START (ly:event-property event 'span-direction))
                  (set! event-start event)
                  (set! event-stop event)))))
-       
+
        (acknowledgers
         (note-column-interface .
           ,(lambda (engraver grob source-engraver)
@@ -364,7 +370,6 @@ jianpuGraceCurveEngraver =
                  (begin
                   (ly:pointer-group-interface::add-grob finished 'elements grob)
                   (add-bound-item finished grob)))))
-        
         (inline-accidental-interface .
           ,(lambda (engraver grob source-engraver)
              (if (ly:spanner? span)
@@ -372,17 +377,13 @@ jianpuGraceCurveEngraver =
                   (ly:pointer-group-interface::add-grob span 'elements grob)))
              (if (ly:spanner? finished)
                  (ly:pointer-group-interface::add-grob finished 'elements grob))))
-        
         (script-interface .
           ,(lambda (engraver grob source-engraver)
              (if (ly:spanner? span)
                  (begin
                   (ly:pointer-group-interface::add-grob span 'elements grob)))
              (if (ly:spanner? finished)
-                 (ly:pointer-group-interface::add-grob finished 'elements grob))))
-        
-        ;; add additional interfaces to acknowledge here
-        )
+                 (ly:pointer-group-interface::add-grob finished 'elements grob)))))
        
        (process-music .
          ,(lambda (trans)
@@ -421,12 +422,8 @@ jianpuGraceCurveEngraver =
                (if (null? (ly:spanner-bound finished RIGHT))
                    (set! (ly:spanner-bound finished RIGHT)
                          (ly:context-property context 'currentMusicalColumn)))
-               (set! finished '())))
-          (if (ly:spanner? span)
-              (begin
-               (ly:warning "unterminated curve :-(")
-               (ly:grob-suicide! span)
-               (set! span '()))))))))
+               (set! finished '())))))
+       )))
 
 jianpuGraceCurveStart =
 #(make-span-event 'JianpuGraceCurveEvent START)
@@ -1555,7 +1552,7 @@ def getLY(score,headers=None,have_final_barline=True):
                 notehead_markup.barPos = oldBarPos
                 repeatStack.append((numBraces,oldBarPos,extraRepeats+1,rStartP))
                 out[rStartP] = out[rStartP].replace(('volta %d ' % (extraRepeats+1)),('volta %d ' % (extraRepeats+2))) # ensure there's enough repeats for the alternatives
-            elif word.startswith("\\") or word in ["(",")","~","->","|"] or word.startswith('^"') or word.startswith('_"'):
+            elif word.startswith("\\") or word.startswith('^\\') or word.startswith('_\\') or word in ["(",")","~","->","|"] or word.startswith('^"') or word.startswith('_"'):
                 # Lilypond command, \p, ^"text", barline check (undocumented, see above), etc
                 if word=="~" and not midi and not western and lastNonDashPtr < lastPtr and lilypond_minor_version()>=20: # tie from the number, not the last dash
                     out.insert(lastNonDashPtr+1,r'\=JianpuTie(')
