@@ -685,8 +685,9 @@ class NoteheadMarkup:
       self.rplacNextIfStillInBeam = None
       self.graceType = None
       self.current_chord = None
+      self.freemode = False
   def endScore(self):
-      if self.barPos == self.startBarPos: pass
+      if self.barPos == self.startBarPos or self.freemode: pass
       elif os.environ.get("j2ly_sloppy_bars",""): sys.stderr.write("Wrong bar length at end of score %d ignored (j2ly_sloppy_bars set)\n" % scoreNo)
       elif self.startBarPos and not self.barPos: errExit("Score %d should end with a %g-beat bar to make up for the %g-beat anacrusis bar.  Set j2ly_sloppy_bars environment variable if you really want to break this rule." % (scoreNo,self.startBarPos/self.beatLength,(self.barLength-self.startBarPos)/self.beatLength)) # this is on the music theory syllabi at about Grade 3, but you can get up to Grade 5 practical without actually covering it, so we'd better not expect all users to understand "final bar does not make up for anacrusis bar"
       else: errExit("Incomplete bar at end of score %d (%g beats)" % (scoreNo,self.barPos*1.0/self.beatLength))
@@ -758,7 +759,7 @@ class NoteheadMarkup:
     self.last_accidental = accidental
 
     ret = ""
-    if self.barPos==0 and self.barNo > 1:
+    if self.barPos==0 and self.barNo > 1 and not self.freemode:
         ret += "| " # barline in Lilypond file: not strictly necessary but may help readability
         if self.onePage and not midi: ret += r"\noPageBreak "
         ret += "%{ bar "+str(self.barNo)+": %} "
@@ -902,7 +903,8 @@ class NoteheadMarkup:
         else:
             ret = r" \jianpuGraceCurveEnd " + ret 
     # sys.stderr.write(accidental+figure+octave+dots+"/"+str(nBeams)+"->"+str(self.barPos)+" ") # if need to see where we are
-    if self.barPos > self.barLength: errExit("(notesHad=%s) barcheck fail: note crosses barline at \"%s\" with %d beams (%d skipped from %d to %d, bypassing %d), scoreNo=%d barNo=%d (but the error could be earlier)" % (' '.join(self.notesHad),figures,nBeams,toAdd,self.barPos-toAdd,self.barPos,self.barLength,scoreNo,self.barNo))
+    if not self.freemode and self.barPos > self.barLength: 
+        errExit("(notesHad=%s) barcheck fail: note crosses barline at \"%s\" with %d beams (%d skipped from %d to %d, bypassing %d), scoreNo=%d barNo=%d (but the error could be earlier)" % (' '.join(self.notesHad),figures,nBeams,toAdd,self.barPos-toAdd,self.barPos,self.barLength,scoreNo,self.barNo))
     if self.barPos%self.beatLength == 0 and self.inBeamGroup: # (self.inBeamGroup is set only if not midi/western)
         # jianpu printouts tend to restart beams every beat
         # (but if there are no beams running anyway, it occasionally helps typesetting to keep the logical group running, e.g. to work around bugs involving beaming a dash-and-rest beat in 6/8) (TODO: what if there's a dash-and-rest BAR?  [..]-notated beams don't usually work across barlines
@@ -1332,6 +1334,7 @@ def getLY(score,headers=None,have_final_barline=True):
    aftrnext = defined_jianpuGrace = defined_JGR = None
    aftrnext2 = None
    isInHarmonic = False
+   freemode = False
    grace_type = ""
    for line in score.split("\n"):
     line = fix_fullwidth(line).strip()
@@ -1552,6 +1555,8 @@ def getLY(score,headers=None,have_final_barline=True):
                 notehead_markup.barPos = oldBarPos
                 repeatStack.append((numBraces,oldBarPos,extraRepeats+1,rStartP))
                 out[rStartP] = out[rStartP].replace(('volta %d ' % (extraRepeats+1)),('volta %d ' % (extraRepeats+2))) # ensure there's enough repeats for the alternatives
+            elif word == "Bar" and freemode:
+                out.append('\\bar "|"')
             elif word.startswith("\\") or word.startswith('^\\') or word.startswith('_\\') or word in ["(",")","~","->","|"] or word.startswith('^"') or word.startswith('_"'):
                 # Lilypond command, \p, ^"text", barline check (undocumented, see above), etc
                 if word=="~" and not midi and not western and lastNonDashPtr < lastPtr and lilypond_minor_version()>=20: # tie from the number, not the last dash
@@ -1588,6 +1593,10 @@ def getLY(score,headers=None,have_final_barline=True):
             elif word=="DC":
                 need_final_barline = False
                 out.append(r'''\once \override Score.RehearsalMark #'break-visibility = #begin-of-line-invisible \once \override Score.RehearsalMark #'self-alignment-X = #RIGHT \mark "D.C. al Fine" \bar "||"''')
+            elif word=="FreeMode":
+                freemode = True
+                out.append("\\cadenzaOn\n")
+                notehead_markup.freemode = True
             else: # note (or unrecognised)
                 word0 = word
                 baseOctaveChange = "".join(c for c in word if c in "<>")
